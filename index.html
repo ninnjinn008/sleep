@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dual Player</title>
+<style>
+:root{--bg:#101215;--panel:#1a1d22;--line:#2b3038;--fg:#e6e8eb;--sub:#8b929c;--accent:#7fb3c8;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+body{padding:12px max(12px,env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.wrap{display:grid;gap:12px}
+@media (orientation:landscape){.wrap{grid-template-columns:1fr 1fr}}
+.slot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:8px;min-width:0}
+.screen{position:relative;aspect-ratio:16/9;background:#000;border-radius:6px;overflow:hidden;max-width:100%}
+.screen iframe,.screen video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--sub);font-size:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+input[type=url]{flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px}
+button,label.btn{background:var(--line);color:var(--fg);border:0;border-radius:6px;padding:8px 12px;font:inherit;cursor:pointer}
+button.primary{background:var(--accent);color:#0b1216}
+input[type=file]{display:none}
+.vol{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:12px}
+.vol input{flex:1}
+.bar{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap"></div>
+<div class="bar">
+  <button class="primary" id="playAll">ローカル動画を両方再生</button>
+  <button id="pauseAll">両方停止</button>
+</div>
+
+<template id="tpl">
+  <div class="slot">
+    <div class="screen"><div class="empty">YouTubeのURLか動画ファイル</div></div>
+    <div class="row">
+      <input type="url" placeholder="YouTubeのURLを貼る">
+      <button class="load">読込</button>
+    </div>
+    <div class="row">
+      <label class="btn">ファイルを選ぶ<input type="file" accept="video/*,audio/*"></label>
+    </div>
+    <div class="vol" hidden>音量 <input type="range" min="0" max="1" step="0.05" value="1"></div>
+  </div>
+</template>
+
+<script>
+const wrap=document.getElementById('wrap'),tpl=document.getElementById('tpl');
+const PRESET=['https://youtube.com/playlist?list=OLAK5uy_my04DUoWmrxtfRTWXSRCwbxhpOi6IoVNs','https://youtu.be/chVq4kdMkq8'];
+function ytSrc(u){
+  try{
+    const x=new URL(u.trim()),list=x.searchParams.get('list');
+    let id=null;
+    if(x.hostname.includes('youtu.be'))id=x.pathname.slice(1).split('/')[0];
+    else if(x.searchParams.get('v'))id=x.searchParams.get('v');
+    else{const m=x.pathname.match(/\/(shorts|live|embed)\/([\w-]{6,})/);if(m)id=m[2]}
+    const q='playsinline=1&rel=0';
+    if(id&&list)return 'https://www.youtube.com/embed/'+id+'?list='+list+'&'+q;
+    if(list)return 'https://www.youtube.com/embed/videoseries?list='+list+'&'+q;
+    if(id)return 'https://www.youtube.com/embed/'+id+'?'+q;
+    return null;
+  }catch(e){return null}
+}
+for(let i=0;i<2;i++){
+  const n=tpl.content.cloneNode(true),slot=n.querySelector('.slot');
+  const screen=slot.querySelector('.screen'),url=slot.querySelector('input[type=url]');
+  const file=slot.querySelector('input[type=file]'),vol=slot.querySelector('.vol'),range=vol.querySelector('input');
+  url.id='url'+i;file.id='file'+i;range.id='vol'+i;
+  const load=()=>{
+    const src=ytSrc(url.value);
+    if(!src){url.value='';url.placeholder='URLが読み取れませんでした';return}
+    screen.innerHTML='<iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="'+src+'"></iframe>';
+    vol.hidden=true;
+  };
+  slot.querySelector('.load').onclick=load;
+  url.value=PRESET[i];load();
+  file.onchange=()=>{
+    const f=file.files[0];if(!f)return;
+    const v=document.createElement('video');
+    v.src=URL.createObjectURL(f);v.controls=true;v.playsInline=true;v.loop=true;
+    screen.innerHTML='';screen.appendChild(v);
+    vol.hidden=false;range.oninput=()=>v.volume=+range.value;
+  };
+  wrap.appendChild(n);
+}
+document.getElementById('playAll').onclick=()=>document.querySelectorAll('video').forEach(v=>v.play().catch(()=>{}));
+document.getElementById('pauseAll').onclick=()=>document.querySelectorAll('video').forEach(v=>v.pause());
+</script>
+</body>
+</html>
